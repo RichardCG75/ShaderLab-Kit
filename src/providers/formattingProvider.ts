@@ -6,15 +6,15 @@ import * as vscode from 'vscode';
 import { maskLine } from '../utils/commentMask';
 import { SHADERLAB_PRO_DOCUMENT_SELECTOR } from './completionProvider';
 
-export type AlignMacrosMode = 'None' | 'Hierarchy Indentation' | 'Align Left' | 'Align With Code';
+export type PreprocessorStyle = 'Hierarchy' | 'Follow Code' | 'Flush Left' | 'None';
 
 export interface FormatSettings {
 	enable: boolean;
 	bracestyle: boolean;
 	tagsSingleline: boolean;
 	cbuffer: boolean;
-	alignMacros: AlignMacrosMode;
-	indentWithinPreprocessor: boolean;
+	preprocessorStyle: PreprocessorStyle;
+	indentIncludeGuard: boolean;
 	indentUnit: string;
 }
 
@@ -29,10 +29,44 @@ export function getFormatSettings(options: vscode.FormattingOptions): FormatSett
 		bracestyle: config.get<boolean>('bracestyle', true),
 		tagsSingleline: config.get<boolean>('tags.singleline', true),
 		cbuffer: config.get<boolean>('cbuffer', true),
-		alignMacros: config.get<AlignMacrosMode>('alignMacros', 'Hierarchy Indentation'),
-		indentWithinPreprocessor: config.get<boolean>('indentWithinPreprocessor', true),
+		preprocessorStyle: resolvePreprocessorStyle(config),
+		indentIncludeGuard: config.get<boolean>('indentIncludeGuard', false),
 		indentUnit: options.insertSpaces ? ' '.repeat(options.tabSize) : '\t',
 	};
+}
+
+/**
+ * `preprocessorStyle` replaces the older `alignMacros` + `indentWithinPreprocessor` pair. When the
+ * new setting hasn't been set explicitly but a legacy one has, translate the legacy values so
+ * existing user configs keep working.
+ */
+function resolvePreprocessorStyle(config: vscode.WorkspaceConfiguration): PreprocessorStyle {
+	const isSet = (key: string): boolean => {
+		const info = config.inspect(key);
+		return (
+			info?.globalValue !== undefined ||
+			info?.workspaceValue !== undefined ||
+			info?.workspaceFolderValue !== undefined
+		);
+	};
+	if (isSet('preprocessorStyle') || !(isSet('alignMacros') || isSet('indentWithinPreprocessor'))) {
+		return config.get<PreprocessorStyle>('preprocessorStyle', 'Hierarchy');
+	}
+	const align = config.get<string>('alignMacros', 'Hierarchy Indentation');
+	if (align === 'None') {
+		return 'None';
+	}
+	if (align === 'Align Left') {
+		return 'Flush Left';
+	}
+	return config.get<boolean>('indentWithinPreprocessor', true) ? 'Hierarchy' : 'Follow Code';
+}
+
+/** `#ifndef NAME` directly followed by `#define NAME`: a header include guard, not real conditional code. */
+function isIncludeGuardOpen(maskedTrimmed: string, nextTrimmed: string | undefined): boolean {
+	const guard = /^#\s*ifndef\s+(\w+)\s*$/.exec(maskedTrimmed);
+	const define = nextTrimmed === undefined ? null : /^#\s*define\s+(\w+)\s*$/.exec(nextTrimmed);
+	return guard !== null && define !== null && define[1] === guard[1];
 }
 
 /** Does this masked, trimmed line open a new `#if`-family conditional block? */
@@ -100,23 +134,16 @@ function reflowToAllman(text: string): string {
  * depth (parens are tracked too, so a multi-line function signature/argument list indents its
  * continuation lines one level deeper). `cbuffer` additionally treats the SRP
  * `CBUFFER_START(...)` / `CBUFFER_END` macro pair as a pseudo brace pair, since URP shaders use it
- * in place of a literal `{`/`}` for the per-material constant buffer. `alignMacros` controls only
- * preprocessor-directive line indentation:
- *   - "None": directive lines are left completely untouched (no reindentation at all).
- *   - "Align Left": forced to column 0.
- *   - "Hierarchy Indentation" / "Align With Code": indented to match the surrounding code's brace
- *     depth. No meaningful distinction exists between these two for a line-based (non-AST)
- *     formatter — both mean "match the code around it" — so they're treated identically.
- *
- * `indentWithinPreprocessor` is a separate, independent nesting axis: when enabled, lines of CODE
- * between a `#if`/`#ifdef`/`#ifndef` and its matching `#endif` are indented one extra level per
- * level of preprocessor-conditional nesting, on top of their brace/paren depth — the same
- * convention clang-format and most C-family tooling use, so macro bodies read naturally instead of
- * sitting flush with the directives around them. `#else`/`#elif` don't change the nesting count
- * (they're siblings of the `#if` that opened the block, not a new level), so both branches of a
- * conditional indent their bodies identically. Per the setting's scope, only body lines gain this
- * extra indent — the `#if`/`#else`/`#endif` directive lines' own placement is governed solely by
- * `alignMacros`, unchanged by this setting.
+ * in place of a literal `{`/`}` for the per-material constant buffer.
+ * `preprocessorStyle` controls how `#`-directive lines and the code inside `#if` blocks indent:
+ *   - "Hierarchy": directives sit at the level of the surrounding code and the body of each
+ *     `#if`/`#ifdef`/`#ifndef` is one level deeper per nesting level (clang-format style).
+ *     `#else`/`#elif` are siblings of their `#if`, so both branches indent identically.
+ *   - "Follow Code": directives sit at the surrounding code's level; bodies get no extra indent.
+ *   - "Flush Left": directives at column 0; bodies get no extra indent.
+ *   - "None": directive lines are left untouched; bodies get no extra indent.
+ * A header include guard (`#ifndef X` + `#define X`) doesn't count as a nesting level unless
+ * `indentIncludeGuard` is on.
  */
 export function formatShaderLabSource(text: string, settings: FormatSettings): string {
 	if (!settings.enable) {
@@ -130,10 +157,13 @@ export function formatShaderLabSource(text: string, settings: FormatSettings): s
 	const out: string[] = [];
 
 	let depth = 0;
+	// One entry per open `#if`-family block: does it contribute an indent level?
+	const ppStack: boolean[] = [];
 	let ppDepth = 0;
 	let inBlockComment = false;
 
-	for (const rawLine of lines) {
+	for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+		const rawLine = lines[lineIndex];
 		const trimmed = rawLine.trim();
 		const { masked, endsInBlockComment } = maskLine(rawLine, inBlockComment);
 		inBlockComment = endsInBlockComment;
@@ -159,14 +189,17 @@ export function formatShaderLabSource(text: string, settings: FormatSettings): s
 			}
 		}
 		const lineDepth = Math.max(0, depth - leadingClosers);
-		// Only non-preprocessor lines (the code *between* directives) pick up the extra
-		// preprocessor-nesting indent; the directive lines themselves are governed by alignMacros.
-		const ppExtra = settings.indentWithinPreprocessor && !isPreprocessor ? ppDepth : 0;
+		const style = settings.preprocessorStyle;
+		const continuesBlock = /^#\s*(else|elif|elifdef|elifndef|endif)\b/.test(maskedTrimmed);
+		// A directive sits at its enclosing block's level, so `#elif`/`#else`/`#endif` use the depth
+		// outside the block they belong to; the body lines inside use the full depth.
+		const ppExtra =
+			style !== 'Hierarchy' ? 0 : isPreprocessor && continuesBlock ? Math.max(0, ppDepth - 1) : ppDepth;
 
 		let indent: string | undefined;
-		if (isPreprocessor && settings.alignMacros === 'None') {
+		if (isPreprocessor && style === 'None') {
 			indent = undefined;
-		} else if (isPreprocessor && settings.alignMacros === 'Align Left') {
+		} else if (isPreprocessor && style === 'Flush Left') {
 			indent = '';
 		} else {
 			indent = settings.indentUnit.repeat(lineDepth + ppExtra);
@@ -175,9 +208,16 @@ export function formatShaderLabSource(text: string, settings: FormatSettings): s
 		out.push(indent === undefined ? rawLine : indent + trimmed);
 
 		if (opensPreprocessorBlock(maskedTrimmed)) {
-			ppDepth++;
-		} else if (closesPreprocessorBlock(maskedTrimmed)) {
-			ppDepth = Math.max(0, ppDepth - 1);
+			const nextTrimmed = lines.slice(lineIndex + 1).find((l) => l.trim().length > 0)?.trim();
+			const counts = settings.indentIncludeGuard || !isIncludeGuardOpen(maskedTrimmed, nextTrimmed);
+			ppStack.push(counts);
+			if (counts) {
+				ppDepth++;
+			}
+		} else if (closesPreprocessorBlock(maskedTrimmed) && ppStack.length > 0) {
+			if (ppStack.pop()) {
+				ppDepth--;
+			}
 		}
 
 		let delta = 0;

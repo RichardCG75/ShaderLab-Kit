@@ -2,6 +2,21 @@
 
 All notable changes to ShaderLab Kit will be documented in this file.
 
+## [0.1.3] - Alpha
+
+### Fixed
+
+- Formatter: directives inside a function (`#if`/`#elif`/`#endif`) no longer sit a level to the left of their own body, which made code inside `#if` blocks look double-indented. Applies to `.shader` and `.hlsl` alike.
+- Formatter: header include guards (`#ifndef X` + `#define X`) no longer indent the whole file.
+
+### Added
+
+- `shaderlabKit.formatting.preprocessorStyle` (`Hierarchy`, `Follow Code`, `Flush Left`, `None`) and `shaderlabKit.formatting.indentIncludeGuard`.
+
+### Deprecated
+
+- `shaderlabKit.formatting.alignMacros` and `shaderlabKit.formatting.indentWithinPreprocessor`: still honored when `preprocessorStyle` isn't set, but superseded by it.
+
 ## [0.1.0] - Alpha
 
 First alpha release. HLSL/URP only — no legacy Cg pipeline support (see README).
