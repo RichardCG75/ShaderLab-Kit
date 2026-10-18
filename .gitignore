@@ -1,0 +1,26 @@
+out/
+dist/
+node_modules/
+
+# Personal scratch/test files, not project content
+testFiles
+
+# Extension packaging
+*.vsix
+
+# Compiled test output
+.vscode-test/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+*.code-workspace
+
+# Env
+.env

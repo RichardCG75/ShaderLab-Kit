@@ -1,0 +1,164 @@
+{
+	"ShaderLab Property: Range": {
+		"prefix": "prop-range",
+		"body": "_${1:Name} (\"${2:Label}\", Range(${3:0}, ${4:1})) = ${5:0.5}",
+		"description": "A float property clamped to [min,max], shown as a slider in the Inspector."
+	},
+	"ShaderLab Property: Float": {
+		"prefix": "prop-float",
+		"body": "_${1:Name} (\"${2:Label}\", Float) = ${3:0}",
+		"description": "A plain float property."
+	},
+	"ShaderLab Property: Int": {
+		"prefix": "prop-int",
+		"body": "_${1:Name} (\"${2:Label}\", Int) = ${3:0}",
+		"description": "A plain integer property."
+	},
+	"ShaderLab Property: Color": {
+		"prefix": "prop-color",
+		"body": "_${1:Name} (\"${2:Label}\", Color) = (${3:1}, ${4:1}, ${5:1}, ${6:1})",
+		"description": "An RGBA color property, shown as a color picker in the Inspector."
+	},
+	"ShaderLab Property: Vector": {
+		"prefix": "prop-vector",
+		"body": "_${1:Name} (\"${2:Label}\", Vector) = (${3:0}, ${4:0}, ${5:0}, ${6:0})",
+		"description": "A raw 4-component vector property."
+	},
+	"ShaderLab Property: 2D Texture": {
+		"prefix": "prop-2d",
+		"body": "_${1:Name} (\"${2:Label}\", 2D) = \"${3:white}\" {}",
+		"description": "A 2D texture slot property (default tint \"white\"/\"black\"/\"gray\"/\"bump\")."
+	},
+	"ShaderLab Property: 3D Texture": {
+		"prefix": "prop-3d",
+		"body": "_${1:Name} (\"${2:Label}\", 3D) = \"\" {}",
+		"description": "A 3D texture slot property."
+	},
+	"ShaderLab Property: Cube Texture": {
+		"prefix": "prop-cube",
+		"body": "_${1:Name} (\"${2:Label}\", Cube) = \"\" {}",
+		"description": "A cubemap texture slot property."
+	},
+	"ShaderLab Property: 2D Texture Array": {
+		"prefix": "prop-2darray",
+		"body": "_${1:Name} (\"${2:Label}\", 2DArray) = \"\" {}",
+		"description": "A 2D texture array slot property."
+	},
+	"ShaderLab: Full URP Shader": {
+		"prefix": "shader",
+		"body": [
+			"Shader \"Custom/${1:ShaderName}\"",
+			"{",
+			"    Properties",
+			"    {",
+			"        _MainTex (\"Texture\", 2D) = \"white\" {}",
+			"    }",
+			"    SubShader",
+			"    {",
+			"        Tags { \"RenderType\"=\"Opaque\" \"RenderPipeline\"=\"UniversalPipeline\" }",
+			"",
+			"        Pass",
+			"        {",
+			"            HLSLPROGRAM",
+			"            #pragma vertex vert",
+			"            #pragma fragment frag",
+			"",
+			"            #include \"Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl\"",
+			"",
+			"            struct Attributes",
+			"            {",
+			"                float4 positionOS : POSITION;",
+			"                float2 uv : TEXCOORD0;",
+			"            };",
+			"",
+			"            struct Varyings",
+			"            {",
+			"                float4 positionCS : SV_POSITION;",
+			"                float2 uv : TEXCOORD0;",
+			"            };",
+			"",
+			"            TEXTURE2D(_MainTex);",
+			"            SAMPLER(sampler_MainTex);",
+			"            float4 _MainTex_ST;",
+			"",
+			"            Varyings vert(Attributes IN)",
+			"            {",
+			"                Varyings OUT;",
+			"                OUT.positionCS = TransformObjectToHClip(IN.positionOS.xyz);",
+			"                OUT.uv = TRANSFORM_TEX(IN.uv, _MainTex);",
+			"                return OUT;",
+			"            }",
+			"",
+			"            half4 frag(Varyings IN) : SV_Target",
+			"            {",
+			"                return SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, IN.uv);$0",
+			"            }",
+			"            ENDHLSL",
+			"        }",
+			"    }",
+			"}"
+		],
+		"description": "A complete URP-ready ShaderLab template: Properties, SubShader, and a Pass with a HLSLPROGRAM vert/frag pair sampling _MainTex."
+	},
+	"ShaderLab: Pass": {
+		"prefix": "pass",
+		"body": [
+			"Pass",
+			"{",
+			"    Tags { \"LightMode\"=\"${1:UniversalForward}\" }",
+			"",
+			"    HLSLPROGRAM",
+			"    #pragma vertex ${2:vert}",
+			"    #pragma fragment ${3:frag}",
+			"",
+			"    #include \"Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl\"",
+			"",
+			"    $0",
+			"    ENDHLSL",
+			"}"
+		],
+		"description": "A Pass block skeleton (Tags, HLSLPROGRAM, vertex/fragment pragmas, Core.hlsl include) for adding another pass to an existing SubShader."
+	},
+	"HLSL: Struct": {
+		"prefix": "struct",
+		"body": [
+			"struct ${1:StructName}",
+			"{",
+			"    ${2:float4 field} : ${3:SEMANTIC};$0",
+			"}"
+		],
+		"description": "A generic HLSL struct with one field/semantic pair to start from."
+	},
+	"HLSL: Attributes (vertex input) struct": {
+		"prefix": "struct-attributes",
+		"body": [
+			"struct Attributes",
+			"{",
+			"    float4 positionOS : POSITION;",
+			"    float3 normalOS : NORMAL;",
+			"    float2 uv : TEXCOORD0;$0",
+			"};"
+		],
+		"description": "Standard URP vertex-input struct (object-space position, normal, UV0)."
+	},
+	"HLSL: Varyings (vertex-to-fragment) struct": {
+		"prefix": "struct-varyings",
+		"body": [
+			"struct Varyings",
+			"{",
+			"    float4 positionCS : SV_POSITION;",
+			"    float2 uv : TEXCOORD0;$0",
+			"};"
+		],
+		"description": "Standard URP vertex-to-fragment interpolant struct (clip-space position, UV0)."
+	},
+	"HLSL: Vertex position/normal transform": {
+		"prefix": "xform-vertex",
+		"body": [
+			"float3 positionWS = TransformObjectToWorld(${1:IN.positionOS.xyz});",
+			"float3 normalWS = TransformObjectToWorldNormal(${2:IN.normalOS});",
+			"float4 positionCS = TransformWorldToHClip(positionWS);$0"
+		],
+		"description": "Common object-to-world-to-clip-space transform lines (position + normal) for a vertex shader body, using URP's Core.hlsl transform functions."
+	}
+}

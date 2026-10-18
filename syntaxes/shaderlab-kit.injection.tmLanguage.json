@@ -1,0 +1,39 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "ShaderLab Kit Injection",
+	"scopeName": "shaderlabKit.injection",
+	"patterns": [
+		{ "include": "#unity-srp-matrices" },
+		{ "include": "#unity-instancing-macros" },
+		{ "include": "#hlsl-texture-macros" },
+		{ "include": "#urp-functions" },
+		{ "include": "#shaderlab-block-keywords" },
+		{ "include": "#shaderlab-pass-state-keywords" }
+	],
+	"repository": {
+		"unity-srp-matrices": {
+			"match": "\\b(UNITY_MATRIX_M|UNITY_MATRIX_V|UNITY_MATRIX_P|UNITY_MATRIX_VP|UNITY_MATRIX_I_M)\\b",
+			"name": "support.constant.unity.shaderlab-kit"
+		},
+		"unity-instancing-macros": {
+			"match": "\\b(UNITY_SETUP_INSTANCE_ID|UNITY_TRANSFER_INSTANCE_ID|UNITY_ACCESS_INSTANCED_PROP)\\b",
+			"name": "support.function.unity.shaderlab-kit"
+		},
+		"hlsl-texture-macros": {
+			"match": "\\b(TEXTURE2D_ARRAY|TEXTURE2D|TEXTURECUBE|SAMPLE_TEXTURE2D_LOD|SAMPLE_TEXTURE2D|SAMPLER)\\b",
+			"name": "support.function.hlsl-srp.shaderlab-kit"
+		},
+		"urp-functions": {
+			"match": "\\b(GetMainLight|GetAdditionalLightsCount|GetAdditionalLight|TransformWorldToShadowCoord|TransformObjectToWorld|TransformWorldToHClip|TransformObjectToHClip|UniversalFragmentPBR|LightingPhysicallyBased|MainLightRealtimeShadow)\\b",
+			"name": "support.function.urp.shaderlab-kit"
+		},
+		"shaderlab-block-keywords": {
+			"match": "\\b(HLSLPROGRAM|ENDHLSL|HLSLINCLUDE|SubShader|Properties|Tags|Pass|Fallback)\\b",
+			"name": "keyword.other.shaderlab-block.shaderlab-kit"
+		},
+		"shaderlab-pass-state-keywords": {
+			"match": "\\b(Blend|ZWrite|ZTest|Cull)\\b",
+			"name": "keyword.other.shaderlab-pass-state.shaderlab-kit"
+		}
+	}
+}
