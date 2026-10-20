@@ -4,7 +4,7 @@
   "publisher": "rgx-studio",
   "description": "Unity HLSL/URP shader tooling for VS Code: completion, hover docs, diagnostics, formatting, go-to-definition, and snippets.",
   "version": "0.2.0",
-  "icon": "assets/RGX Studio Shader Sphere 128x128.png",
+  "icon": "assets/icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
