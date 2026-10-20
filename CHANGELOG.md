@@ -2,7 +2,7 @@
 
 All notable changes to ShaderLab Kit will be documented in this file.
 
-## [0.1.3] - Alpha
+## [0.2.0]
 
 ### Fixed
 

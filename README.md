@@ -4,7 +4,6 @@
 
 **HLSL / URP tooling for Unity shaders in VS Code.**
 
-![Status](https://img.shields.io/badge/status-alpha-orange)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.140.0-007ACC)
 

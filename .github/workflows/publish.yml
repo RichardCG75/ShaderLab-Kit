@@ -1,0 +1,52 @@
+name: Publish Extension
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write # attach the .vsix to the GitHub release
+
+jobs:
+  publish:
+    name: Publish to VS Code Marketplace
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release tag matches package.json version
+        run: |
+          PKG_VERSION="v$(node -p "require('./package.json').version")"
+          if [ "$PKG_VERSION" != "${{ github.event.release.tag_name }}" ]; then
+            echo "Release tag ${{ github.event.release.tag_name }} does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+
+      - name: Type-check and lint
+        run: |
+          npm run check-types
+          npm run lint
+
+      - name: Package extension
+        run: npx --yes @vscode/vsce package --out shaderlab-kit.vsix
+
+      - name: Publish to VS Code Marketplace
+        run: npx --yes @vscode/vsce publish --packagePath shaderlab-kit.vsix
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Attach .vsix to GitHub release
+        run: gh release upload "${{ github.event.release.tag_name }}" shaderlab-kit.vsix --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
