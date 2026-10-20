@@ -5,7 +5,7 @@
 **HLSL / URP tooling for Unity shaders in VS Code.**
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.140.0-007ACC)
+![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.85.0-007ACC)
 
 Completion · Hover docs · Diagnostics · Formatting · Go-to-definition · Snippets
 
@@ -36,7 +36,7 @@ ShaderLab Kit adds real IntelliSense to Unity's `.shader`, `.hlsl`, `.cginc`, an
 
 ## Requirements
 
-- VS Code `1.140.0` or later.
+- VS Code `1.85.0` or later.
 - No Unity installation required — but `#include` resolution and Unity Editor path detection work best inside an actual Unity project.
 
 ## Installation

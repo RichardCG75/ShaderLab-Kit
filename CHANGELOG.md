@@ -2,6 +2,12 @@
 
 All notable changes to ShaderLab Kit will be documented in this file.
 
+## [0.2.1]
+
+### Changed
+
+- Lowered the minimum supported VS Code version from 1.140.0 to 1.85.0.
+
 ## [0.2.0]
 
 ### Fixed
