@@ -34,6 +34,34 @@ ShaderLab Kit adds real IntelliSense to Unity's `.shader`, `.hlsl`, `.cginc`, an
 
 **Not supported:** Unity's legacy Cg pipeline (`CGPROGRAM`/`UnityCG.cginc`/surface shaders). ShaderLab Kit targets `HLSLPROGRAM` and the Universal Render Pipeline (URP).
 
+## Screenshots
+
+### Completion
+
+HLSL semantics, intrinsics with their signatures, and every scalar, vector and matrix type.
+
+![Completion list after typing SV_ in a struct field, listing SV_CLIPDISTANCE through SV_CLIPDISTANCE9](assets/screenshots/completion-semantics.png)
+
+![Completion list for sin showing sin, sincos, sinh and sign, with the signature float sin(float a)](assets/screenshots/completion-intrinsics.png)
+
+![Completion list for float showing float, float1x1 through float2x4, float2 and float3](assets/screenshots/completion-types.png)
+
+### Hover documentation
+
+What an intrinsic does, plus every overload.
+
+![Hover on sin(a) reading "returns sine of scalars and vectors" above every overload](assets/screenshots/hover-sin.png)
+
+![Hover on saturate(x) explaining that it clamps to the range 0 to 1, followed by its overloads](assets/screenshots/hover-saturate.png)
+
+![Hover on dot reading "returns the scalar dot product of two vectors" above its overloads](assets/screenshots/hover-dot.png)
+
+### Formatting
+
+ShaderLab Kit registers as the formatter for shader files.
+
+![VS Code's Select a formatter picker with ShaderLab Kit marked as the default](assets/screenshots/formatter.png)
+
 ## Requirements
 
 - VS Code `1.85.0` or later.
