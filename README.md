@@ -27,10 +27,13 @@ ShaderLab Kit adds real IntelliSense to Unity's `.shader`, `.hlsl`, `.cginc`, an
 - 🧹 **Formatting** — consistent bracing, indentation, `Tags {}` collapsing, and preprocessor-aware indentation.
 - ⚡ **Smart completion** — HLSL intrinsics with full argument snippets (`lerp(${a}, ${b}, ${w})`), HLSL semantics (`POSITION`, `TEXCOORD0`, `SV_Target`), Unity/URP globals (`_Time`, `_MainTex_ST`, `GetMainLight()`), `Blend`/`ZWrite`/`ZTest`/`Cull` values, ShaderLab property types, and `#include` path completion.
 - 📖 **Hover documentation** — real explanations for HLSL semantics and Unity/URP globals, not just a type label.
+- 🧠 **Shader-aware symbols** — completion, hover and go-to-definition for what *your* shader declares: material properties (`_Color1`), keywords (including the `_CHANNELS_6_CHANNELS` family a `[KeywordEnum]` generates), `#define` macros, functions (with `//` / `/** */` doc comments), structs and `IN.`/`OUT.` members — across the file and its project-local `#include`s.
+- 🧾 **ShaderLab syntax help** — `[Toggle]`/`[KeywordEnum]`/`[HDR]`… property attributes, `Tags` keys and values (`LightMode`, `Queue`, `RenderType`), `ColorMask`/`BlendOp`/`Stencil`/`Offset` and other statements, `FallBack`/`CustomEditor`, and every `#pragma` form (`shader_feature_local`, `multi_compile_fragment`, `target`, `only_renderers`, …) with explanations of when to use which.
+- 🔦 **URP library coverage** — ~190 curated entries: `TransformObjectToWorldNormal`, `GetVertexPositionInputs`, `SampleSH`, `ApplyShadowBias`, `LIGHT_LOOP_BEGIN`, `CBUFFER_START`, instancing/stereo macros, `UNITY_REVERSED_Z`, math constants, URP shader keywords (`_MAIN_LIGHT_SHADOWS`, `_SHADOWS_SOFT`, …) and `Light`/`InputData`/`VertexPositionInputs` members.
 - 🔗 **Go-to-definition** — jump straight to an `#include`d file or a `Fallback` shader.
 - 📁 **Unity-aware `#include` resolution** — understands Unity project layout and Package Manager paths (`Packages/...`, `Library/PackageCache/...`), with Unity Editor auto-detection.
-- ⚠️ **Diagnostics** — unbalanced brackets, misspelled Unity/URP macros ("did you mean `GetMainLight`?"), and wrong argument counts for HLSL intrinsics.
-- ✂️ **Snippets** — a full URP shader template, `Pass` blocks, structs, vertex-transform boilerplate, and ShaderLab property declarations.
+- ⚠️ **Diagnostics** — unbalanced brackets, misspelled Unity/URP macros ("did you mean `GetMainLight`?"), wrong argument counts for HLSL intrinsics, and keyword bookkeeping: a `[Toggle]`/`[KeywordEnum]` that no `#pragma` declares, a material-driven keyword that should be `_local`, and typos in `#if defined(_KEYWORD)`.
+- ✂️ **Snippets** — a full URP shader template, `Pass` blocks, ShadowCaster and DepthOnly passes, a shared `UnityPerMaterial` `CBUFFER`, structs, vertex-transform boilerplate, keyword pragmas, include guards, and ShaderLab property declarations (including `[Toggle]`, `[KeywordEnum]`, `[HDR]`).
 
 **Not supported:** Unity's legacy Cg pipeline (`CGPROGRAM`/`UnityCG.cginc`/surface shaders). ShaderLab Kit targets `HLSLPROGRAM` and the Universal Render Pipeline (URP).
 

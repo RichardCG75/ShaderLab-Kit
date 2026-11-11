@@ -160,5 +160,195 @@
 			"float4 positionCS = TransformWorldToHClip(positionWS);$0"
 		],
 		"description": "Common object-to-world-to-clip-space transform lines (position + normal) for a vertex shader body, using URP's Core.hlsl transform functions."
+	},
+	"ShaderLab Property: Toggle (keyword)": {
+		"prefix": "propToggle",
+		"body": [
+			"[Toggle(${1:_FEATURE_ON})] ${2:_Feature} (\"${3:Feature}\", Float) = ${4:0}"
+		],
+		"description": "Checkbox that enables a shader keyword. Pair with #pragma shader_feature_local."
+	},
+	"ShaderLab Property: KeywordEnum": {
+		"prefix": "propKeywordEnum",
+		"body": [
+			"[KeywordEnum(${1:None}, ${2:A}, ${3:B})] ${4:_Mode} (\"${5:Mode}\", Float) = ${6:0}"
+		],
+		"description": "Dropdown that enables one keyword _MODE_<VALUE>. Declare all with one #pragma shader_feature_local."
+	},
+	"ShaderLab Property: HDR Color": {
+		"prefix": "propHDRColor",
+		"body": [
+			"[HDR] ${1:_EmissionColor} (\"${2:Emission Color}\", Color) = (${3:0}, ${4:0}, ${5:0}, ${6:1})"
+		],
+		"description": "HDR color property (values above 1 allowed)."
+	},
+	"ShaderLab Property: Cull Enum": {
+		"prefix": "propCull",
+		"body": [
+			"[Enum(UnityEngine.Rendering.CullMode)] _Cull (\"Cull\", Float) = ${1:2}"
+		],
+		"description": "Cull mode dropdown; use with `Cull [_Cull]`."
+	},
+	"ShaderLab: ShadowCaster Pass (URP)": {
+		"prefix": "passShadowCaster",
+		"body": [
+			"Pass",
+			"{",
+			"\tName \"ShadowCaster\"",
+			"\tTags { \"LightMode\" = \"ShadowCaster\" }",
+			"",
+			"\tZWrite On",
+			"\tZTest LEqual",
+			"\tColorMask 0",
+			"",
+			"\tHLSLPROGRAM",
+			"\t#pragma vertex ShadowVert",
+			"\t#pragma fragment ShadowFrag",
+			"\t#pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW",
+			"",
+			"\t#include \"Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl\"",
+			"\t#include \"Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl\"",
+			"",
+			"\tfloat3 _LightDirection;",
+			"\tfloat3 _LightPosition;",
+			"",
+			"\tstruct ShadowAttributes",
+			"\t{",
+			"\t\tfloat4 positionOS : POSITION;",
+			"\t\tfloat3 normalOS : NORMAL;",
+			"\t};",
+			"",
+			"\tfloat4 ShadowVert(ShadowAttributes IN) : SV_POSITION",
+			"\t{",
+			"\t\tfloat3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);",
+			"\t\tfloat3 normalWS = TransformObjectToWorldNormal(IN.normalOS);",
+			"",
+			"\t\t#if defined(_CASTING_PUNCTUAL_LIGHT_SHADOW)",
+			"\t\t\tfloat3 lightDirectionWS = normalize(_LightPosition - positionWS);",
+			"\t\t#else",
+			"\t\t\tfloat3 lightDirectionWS = _LightDirection;",
+			"\t\t#endif",
+			"",
+			"\t\tfloat4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, lightDirectionWS));",
+			"",
+			"\t\t#if UNITY_REVERSED_Z",
+			"\t\t\tpositionCS.z = min(positionCS.z, UNITY_NEAR_CLIP_VALUE);",
+			"\t\t#else",
+			"\t\t\tpositionCS.z = max(positionCS.z, UNITY_NEAR_CLIP_VALUE);",
+			"\t\t#endif",
+			"\t\treturn positionCS;",
+			"\t}",
+			"",
+			"\thalf4 ShadowFrag() : SV_TARGET",
+			"\t{",
+			"\t\treturn 0;",
+			"\t}",
+			"\tENDHLSL",
+			"}"
+		],
+		"description": "URP ShadowCaster pass with punctual-light support. If the forward pass animates vertices, apply the same animation here."
+	},
+	"ShaderLab: DepthOnly Pass (URP)": {
+		"prefix": "passDepthOnly",
+		"body": [
+			"Pass",
+			"{",
+			"\tName \"DepthOnly\"",
+			"\tTags { \"LightMode\" = \"DepthOnly\" }",
+			"",
+			"\tZWrite On",
+			"\tColorMask R",
+			"",
+			"\tHLSLPROGRAM",
+			"\t#pragma vertex DepthVert",
+			"\t#pragma fragment DepthFrag",
+			"",
+			"\t#include \"Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl\"",
+			"",
+			"\tstruct DepthAttributes { float4 positionOS : POSITION; };",
+			"",
+			"\tfloat4 DepthVert(DepthAttributes IN) : SV_POSITION",
+			"\t{",
+			"\t\treturn TransformObjectToHClip(IN.positionOS.xyz);",
+			"\t}",
+			"",
+			"\thalf DepthFrag() : SV_TARGET",
+			"\t{",
+			"\t\treturn 0;",
+			"\t}",
+			"\tENDHLSL",
+			"}"
+		],
+		"description": "URP DepthOnly pass for the camera depth texture. Mirror any vertex animation from the forward pass."
+	},
+	"ShaderLab: HLSLINCLUDE with UnityPerMaterial CBUFFER": {
+		"prefix": "hlslIncludeCbuffer",
+		"body": [
+			"HLSLINCLUDE",
+			"\t#include \"Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl\"",
+			"",
+			"\t// Identical in every pass => SRP Batcher compatible",
+			"\tCBUFFER_START(UnityPerMaterial)",
+			"\t\thalf4 ${1:_BaseColor};",
+			"\t$0",
+			"\tCBUFFER_END",
+			"ENDHLSL"
+		],
+		"description": "Shared HLSLINCLUDE holding the single UnityPerMaterial CBUFFER for all passes."
+	},
+	"HLSL: UnityPerMaterial CBUFFER": {
+		"prefix": "cbufferMaterial",
+		"body": [
+			"CBUFFER_START(UnityPerMaterial)",
+			"\t${1:half4 _BaseColor;}",
+			"CBUFFER_END"
+		],
+		"description": "SRP Batcher-compatible per-material constant buffer."
+	},
+	"HLSL: Pragma shader_feature_local": {
+		"prefix": "pragmaFeature",
+		"body": [
+			"#pragma shader_feature_local ${1:_FEATURE_ON}"
+		],
+		"description": "Per-material keyword toggle (stripped when unused)."
+	},
+	"HLSL: Pragma keyword enum": {
+		"prefix": "pragmaKeywordEnum",
+		"body": [
+			"#pragma shader_feature_local ${1:_MODE_A} ${2:_MODE_B} ${3:_MODE_C}"
+		],
+		"description": "Keywords produced by a [KeywordEnum(A, B, C)] property named _MODE."
+	},
+	"HLSL: Header include guard": {
+		"prefix": "includeGuard",
+		"body": [
+			"#ifndef ${1:PROJECT_FILE_INCLUDED}",
+			"#define ${1:PROJECT_FILE_INCLUDED}",
+			"",
+			"$0",
+			"",
+			"#endif"
+		],
+		"description": "Include guard for a shared .hlsl file."
+	},
+	"HLSL: GPU instancing boilerplate": {
+		"prefix": "instancingSetup",
+		"body": [
+			"#pragma multi_compile_instancing",
+			"// Attributes: add UNITY_VERTEX_INPUT_INSTANCE_ID",
+			"// vert: UNITY_SETUP_INSTANCE_ID(IN);"
+		],
+		"description": "Instancing pragma and the two macros it requires."
+	},
+	"HLSL: Main light Lambert + ambient": {
+		"prefix": "lambertSH",
+		"body": [
+			"Light mainLight = GetMainLight();",
+			"half3 normalWS = normalize(${1:IN.normalWS});",
+			"half3 direct = mainLight.color * (saturate(dot(normalWS, mainLight.direction)) * mainLight.distanceAttenuation);",
+			"half3 ambient = SampleSH(normalWS);",
+			"half3 lighting = direct + ambient;"
+		],
+		"description": "Simple Lambert lighting from the main light plus SH ambient."
 	}
 }

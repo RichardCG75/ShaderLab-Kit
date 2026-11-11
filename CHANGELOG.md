@@ -2,6 +2,29 @@
 
 All notable changes to ShaderLab Kit will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Shader-aware symbols: properties, keywords (including `[Toggle]` and `[KeywordEnum]`-generated ones), `#define` macros, functions (with leading doc comments), structs and struct members are now completed, hovered and go-to-definition-able, across the open file and its project-local `#include`s. Package-cache and Unity Editor includes are not scanned.
+- Struct member completion and hover for `var.` when `var` is declared with a user struct or a URP struct (`Light`, `VertexPositionInputs`, `VertexNormalInputs`, `InputData`, `SurfaceData`).
+- ShaderLab syntax completion and hover: material property attributes, `Tags` keys/values, SubShader/Pass statements, `Stencil` blocks, and values for `ColorMask`, `BlendOp` and `AlphaToMask`.
+- `#pragma` completion and hover: directive names with usage guidance, entry-point names, keyword lists, `target` and renderer lists.
+- Keyword-aware completion inside `#if` / `#ifdef` / `defined(...)`.
+- 130 new URP/SRP Core entries (space transforms, fog, SH/GI, shadow bias, light loop, SRP Batcher and instancing macros, platform macros, texture macros, math/color helpers, URP shader keywords) with the defining include shown in hover.
+- Diagnostics: a property-driven keyword that no `#pragma` declares; material-driven keywords declared without `_local`; typo detection for undefined keywords in `#if`/`defined()`.
+- Snippets: ShadowCaster and DepthOnly passes, `HLSLINCLUDE` + `UnityPerMaterial`, `[Toggle]`/`[KeywordEnum]`/`[HDR]`/Cull-enum properties, keyword pragmas, include guard, instancing setup, Lambert + SH lighting.
+- Syntax highlighting for the new URP functions/macros and for `FallBack`, `CustomEditor`, `Stencil`, `ColorMask`, `BlendOp`, `AlphaToMask`.
+
+### Changed
+
+- Completion is context-aware: ShaderLab statements only appear in ShaderLab scope (not inside HLSL), and inside `Properties { }` only property snippets, types and attributes are offered instead of the whole HLSL list.
+- Functions and structs defined in the file are no longer reported as "did you mean" misspelled URP built-ins.
+
+### Fixed
+
+- Go-to-definition on `FallBack "..."` (Unity's usual spelling) did not work; only `Fallback` was recognised.
+
 ## [0.2.1]
 
 ### Changed

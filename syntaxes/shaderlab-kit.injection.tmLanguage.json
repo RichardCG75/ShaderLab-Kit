@@ -12,27 +12,27 @@
 	],
 	"repository": {
 		"unity-srp-matrices": {
-			"match": "\\b(UNITY_MATRIX_M|UNITY_MATRIX_V|UNITY_MATRIX_P|UNITY_MATRIX_VP|UNITY_MATRIX_I_M)\\b",
+			"match": "\\b(UNITY_MATRIX_I_M|UNITY_MATRIX_VP|UNITY_MATRIX_M|UNITY_MATRIX_V|UNITY_MATRIX_P|INV_TWO_PI|HALF_MIN|HALF_MAX|FOUR_PI|HALF_PI|FLT_EPS|FLT_MIN|FLT_MAX|TWO_PI|INV_PI|PI)\\b",
 			"name": "support.constant.unity.shaderlab-kit"
 		},
 		"unity-instancing-macros": {
-			"match": "\\b(UNITY_SETUP_INSTANCE_ID|UNITY_TRANSFER_INSTANCE_ID|UNITY_ACCESS_INSTANCED_PROP)\\b",
+			"match": "\\b(UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX|UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO|UNITY_VERTEX_INPUT_INSTANCE_ID|UNITY_INSTANCING_BUFFER_START|UNITY_ACCESS_INSTANCED_PROP|UNITY_INSTANCING_BUFFER_END|UNITY_DEFINE_INSTANCED_PROP|UNITY_TRANSFER_INSTANCE_ID|UNITY_VERTEX_OUTPUT_STEREO|UNITY_SETUP_INSTANCE_ID|UNITY_UV_STARTS_AT_TOP|UNITY_COLORSPACE_GAMMA|UNITY_NEAR_CLIP_VALUE|LIGHT_LOOP_BEGIN|UNITY_REVERSED_Z|LIGHT_LOOP_END|TRANSFORM_TEX|CBUFFER_START|UNITY_FLATTEN|UNITY_BRANCH|UNITY_UNROLL|CBUFFER_END|UNITY_LOOP)\\b",
 			"name": "support.function.unity.shaderlab-kit"
 		},
 		"hlsl-texture-macros": {
-			"match": "\\b(TEXTURE2D_ARRAY|TEXTURE2D|TEXTURECUBE|SAMPLE_TEXTURE2D_LOD|SAMPLE_TEXTURE2D|SAMPLER)\\b",
+			"match": "\\b(SAMPLE_TEXTURE2D_ARRAY|SAMPLE_TEXTURECUBE_LOD|SAMPLE_TEXTURE2D_BIAS|SAMPLE_TEXTURE2D_GRAD|SAMPLE_TEXTURE2D_LOD|SAMPLE_TEXTURECUBE|SAMPLE_TEXTURE2D|SAMPLE_TEXTURE3D|TEXTURE2D_ARRAY|LOAD_TEXTURE2D|TEXTURECUBE|TEXTURE2D_X|TEXTURE2D|TEXTURE3D|SAMPLER)\\b",
 			"name": "support.function.hlsl-srp.shaderlab-kit"
 		},
 		"urp-functions": {
-			"match": "\\b(GetMainLight|GetAdditionalLightsCount|GetAdditionalLight|TransformWorldToShadowCoord|TransformObjectToWorld|TransformWorldToHClip|TransformObjectToHClip|UniversalFragmentPBR|LightingPhysicallyBased|MainLightRealtimeShadow)\\b",
+			"match": "\\b(AdditionalLightRealtimeShadow|TransformObjectToWorldNormal|TransformWorldToShadowCoord|UniversalFragmentBlinnPhong|GetNormalizedScreenSpaceUV|TransformWorldToObjectDir|TransformObjectToWorldDir|GetAdditionalLightsCount|TransformWorldToHClipDir|NormalizeNormalPerVertex|LightingPhysicallyBased|MainLightRealtimeShadow|GetVertexPositionInputs|NormalizeNormalPerPixel|TransformObjectToWorld|TransformObjectToHClip|TransformWorldToObject|TransformWorldToHClip|GetVertexNormalInputs|UniversalFragmentPBR|TransformWorldToView|GetCameraPositionWS|GetOddNegativeScale|GetAdditionalLight|SampleSceneNormals|GetViewForwardDir|UnpackNormalScale|ComputeScreenPos|SampleSceneDepth|SampleSceneColor|ComputeFogFactor|LightingSpecular|FastSRGBToLinear|FastLinearToSRGB|LightingLambert|ApplyShadowBias|LinearEyeDepth|SampleSHVertex|Linear01Depth|SampleSHPixel|SafeNormalize|GetMainLight|UnpackNormal|SRGBToLinear|LinearToSRGB|MixFogColor|PositivePow|Luminance|SampleSH|MixFog|Pow4|Max3|Min3|Sq)\\b",
 			"name": "support.function.urp.shaderlab-kit"
 		},
 		"shaderlab-block-keywords": {
-			"match": "\\b(HLSLPROGRAM|ENDHLSL|HLSLINCLUDE|SubShader|Properties|Tags|Pass|Fallback)\\b",
+			"match": "\\b(CustomEditor|HLSLPROGRAM|HLSLINCLUDE|Properties|Dependency|SubShader|Fallback|FallBack|ENDHLSL|Stencil|UsePass|Tags|Pass)\\b",
 			"name": "keyword.other.shaderlab-block.shaderlab-kit"
 		},
 		"shaderlab-pass-state-keywords": {
-			"match": "\\b(Blend|ZWrite|ZTest|Cull)\\b",
+			"match": "\\b(AlphaToMask|ColorMask|BlendOp|ZWrite|Blend|ZTest|Cull)\\b",
 			"name": "keyword.other.shaderlab-pass-state.shaderlab-kit"
 		}
 	}

@@ -41,5 +41,5 @@ export function findIncludeDirective(line: string): DirectiveMatch | undefined {
 }
 
 export function findFallbackDirective(line: string): DirectiveMatch | undefined {
-	return findDirective(line, /\bFallback\s+"([^"]*)"/);
+	return findDirective(line, /\bFall[Bb]ack\s+"([^"]*)"/);
 }

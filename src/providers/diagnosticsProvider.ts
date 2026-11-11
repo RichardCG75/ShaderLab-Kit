@@ -9,6 +9,8 @@ import * as vscode from 'vscode';
 import functionsData from '../data/functions.json';
 import { URP_BUILTINS } from '../data/urpBuiltins';
 import { maskLine } from '../utils/commentMask';
+import { ShaderSymbols, extractSymbols } from '../analysis/shaderSymbols';
+import { getResolvedSymbols } from '../analysis/documentSymbols';
 import { EXCLUDED_ENTRYPOINT_NAMES, EXCLUDED_LEGACY_KEYWORDS, SHADERLAB_PRO_DOCUMENT_SELECTOR } from './completionProvider';
 
 export function isAnalysisEnabled(): boolean {
@@ -241,6 +243,85 @@ function checkMisspelledBuiltins(maskedLines: string[], locallyDefined: Set<stri
 	return diagnostics;
 }
 
+/** Symbols visible to the keyword checks: the file's own plus (when available) its includes'. */
+export interface DiagnosticSymbolContext {
+	symbols: ShaderSymbols;
+	/** An include could not be inspected, so a keyword missing from `symbols` may still be declared there. */
+	hasOpaqueIncludes: boolean;
+}
+
+const KEYWORD_SHAPE = /^_[A-Z][A-Z0-9_]{3,}$/;
+const KNOWN_URP_KEYWORDS = URP_BUILTINS.filter((b) => b.kind === 'keyword').map((b) => b.name);
+
+function columnOf(rawLine: string, token: string): { start: number; end: number } {
+	const start = rawLine.search(new RegExp(`(?<![A-Za-z0-9_])${escapeRegex(token)}(?![A-Za-z0-9_])`));
+	return start === -1 ? { start: 0, end: rawLine.length } : { start, end: start + token.length };
+}
+
+/**
+ * Keyword bookkeeping (from the Unity shader guidance): a `[Toggle]`/`[KeywordEnum]` property whose
+ * keyword no `#pragma` declares does nothing; material-driven keywords should be `_local`; and a
+ * `#if`/`defined()` on a name that is one typo away from a declared keyword is almost certainly a typo.
+ */
+function checkKeywords(rawLines: string[], maskedLines: string[], context: DiagnosticSymbolContext): RawDiagnostic[] {
+	const diagnostics: RawDiagnostic[] = [];
+	const { symbols, hasOpaqueIncludes } = context;
+	const driven = new Map(symbols.keywords.filter((k) => k.drivenBy).map((k) => [k.name, k]));
+
+	if (symbols.hasPragmas && !hasOpaqueIncludes) {
+		for (const property of symbols.properties) {
+			for (const keywordName of property.drivenKeywords) {
+				const keyword = symbols.keywords.find((k) => k.name === keywordName);
+				if (keyword && keyword.pragmas.length === 0) {
+					const { start, end } = columnOf(rawLines[property.line], property.name);
+					diagnostics.push({
+						line: property.line, startChar: start, endChar: end,
+						message: `Property '${property.name}' switches keyword '${keywordName}', but no '#pragma shader_feature_local' / 'multi_compile_local' declares it, so the checkbox/dropdown has no effect.`,
+						severity: vscode.DiagnosticSeverity.Warning,
+					});
+				}
+			}
+		}
+	}
+
+	for (const pragmaLine of symbols.pragmaKeywordLines) {
+		const named = pragmaLine.keywords.filter((k) => !/^_+$/.test(k));
+		if (!pragmaLine.kind.includes('_local') && named.length > 0 && named.every((k) => driven.has(k))) {
+			const { start, end } = columnOf(rawLines[pragmaLine.line], named[0]);
+			const local = pragmaLine.kind.replace(/^(multi_compile|shader_feature)/, '$1_local');
+			diagnostics.push({
+				line: pragmaLine.line, startChar: start, endChar: end,
+				message: `'${named[0]}' is set by material property '${driven.get(named[0])?.drivenBy}'; prefer '#pragma ${local}' (local keyword: no global keyword slot, variants stripped when unused).`,
+				severity: vscode.DiagnosticSeverity.Information,
+			});
+		}
+	}
+
+	if (!hasOpaqueIncludes) {
+		const declared = new Set<string>([...symbols.keywords.map((k) => k.name), ...symbols.macros.map((m) => m.name), ...KNOWN_URP_KEYWORDS]);
+		const candidates = [...declared].filter((name) => KEYWORD_SHAPE.test(name));
+		const condition = /^\s*#\s*(?:if|elif|ifdef|ifndef)\b|\bdefined\s*\(/;
+		const tokenRegex = /\b_[A-Z][A-Z0-9_]{3,}\b/g;
+		for (let line = 0; line < maskedLines.length; line++) {
+			if (!condition.test(maskedLines[line])) { continue; }
+			tokenRegex.lastIndex = 0;
+			let match: RegExpExecArray | null;
+			while ((match = tokenRegex.exec(maskedLines[line]))) {
+				if (declared.has(match[0])) { continue; }
+				const best = closestMatch(match[0], candidates);
+				if (best) {
+					diagnostics.push({
+						line, startChar: match.index, endChar: match.index + match[0].length,
+						message: `Keyword '${match[0]}' is never declared or defined — did you mean '${best.name}'? (An undefined keyword is silently false.)`,
+						severity: vscode.DiagnosticSeverity.Warning,
+					});
+				}
+			}
+		}
+	}
+	return diagnostics;
+}
+
 function checkArgumentCounts(maskedLines: string[]): RawDiagnostic[] {
 	const diagnostics: RawDiagnostic[] = [];
 	if (!functionCallRegex) {
@@ -274,7 +355,7 @@ function checkArgumentCounts(maskedLines: string[]): RawDiagnostic[] {
 /** Pure diagnostic computation over raw document text — exported for testing without a live
  * vscode.TextDocument. Splits the same way commentMask.maskDocument does, then masks per line
  * (tracking block-comment state across lines) so positions map 1:1 onto the original lines. */
-export function computeDiagnosticsForText(text: string): RawDiagnostic[] {
+export function computeDiagnosticsForText(text: string, context?: DiagnosticSymbolContext): RawDiagnostic[] {
 	const rawLines = text.split(/\r\n|\r|\n/);
 	const maskedLines: string[] = [];
 	let inBlockComment = false;
@@ -284,13 +365,24 @@ export function computeDiagnosticsForText(text: string): RawDiagnostic[] {
 		inBlockComment = endsInBlockComment;
 	}
 
+	const symbols = context?.symbols ?? extractSymbols(text);
+	const keywordContext: DiagnosticSymbolContext = context ?? {
+		symbols,
+		hasOpaqueIncludes: symbols.includes.some((include) => !/^Packages[\\/]/.test(include)),
+	};
+
+	// Anything the file itself defines (macros, functions, structs) is never a "misspelled built-in".
 	const locallyDefined = collectLocalDefines(maskedLines);
+	for (const name of [...symbols.functions.map((f) => f.name), ...symbols.structs.map((st) => st.name)]) {
+		locallyDefined.add(name);
+	}
 
 	return [
 		...checkBrackets(maskedLines),
 		...checkLegacyConstructs(maskedLines),
 		...checkMisspelledBuiltins(maskedLines, locallyDefined),
 		...checkArgumentCounts(maskedLines),
+		...checkKeywords(rawLines, maskedLines, keywordContext),
 	];
 }
 
@@ -320,16 +412,22 @@ export function registerDiagnosticsProvider(context: vscode.ExtensionContext): v
 		}
 		timers.set(key, setTimeout(() => {
 			timers.delete(key);
-			updateNow(document);
+			void updateNow(document);
 		}, DEBOUNCE_MS));
 	}
 
-	function updateNow(document: vscode.TextDocument): void {
+	async function updateNow(document: vscode.TextDocument): Promise<void> {
 		if (!isAnalysisEnabled()) {
 			collection.delete(document.uri);
 			return;
 		}
-		const diagnostics = computeDiagnosticsForText(document.getText()).map(toVscodeDiagnostic);
+		const version = document.version;
+		const resolved = await getResolvedSymbols(document);
+		if (document.version !== version) {
+			return; // Edited while includes were loading; the newer change schedules its own update.
+		}
+		const diagnostics = computeDiagnosticsForText(document.getText(), { symbols: resolved.all, hasOpaqueIncludes: resolved.hasOpaqueIncludes })
+			.map(toVscodeDiagnostic);
 		collection.set(document.uri, diagnostics);
 	}
 

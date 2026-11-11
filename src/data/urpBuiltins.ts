@@ -2,15 +2,26 @@
 // ported from either reference repo) — see shaderlab-domain skill for the source list. HLSL/URP
 // scope only; no legacy Cg-pipeline entries.
 
-export type UrpBuiltinKind = 'function' | 'macro' | 'constant';
+import { URP_EXTENDED_BUILTINS } from './urpBuiltinsExtended';
+
+export type UrpBuiltinKind = 'function' | 'macro' | 'constant' | 'keyword' | 'struct';
 
 export interface UrpBuiltin {
 	name: string;
 	kind: UrpBuiltinKind;
 	detail: string;
+	/** Include file that defines it (e.g. `Lighting.hlsl`), shown in hover. */
+	source?: string;
 }
 
-export const URP_BUILTINS: UrpBuiltin[] = [
+/** Members of built-in URP structs, used for `var.` member completion/hover once `var` is declared with the struct type. */
+export interface BuiltinStruct {
+	name: string;
+	source: string;
+	members: { name: string; type: string; doc: string }[];
+}
+
+const CORE_URP_BUILTINS: UrpBuiltin[] = [
 	// SRP matrices
 	{ name: 'UNITY_MATRIX_M', kind: 'constant', detail: 'Object-to-world transform matrix.' },
 	{ name: 'UNITY_MATRIX_V', kind: 'constant', detail: 'World-to-view (camera) transform matrix.' },
@@ -89,3 +100,11 @@ export const URP_BUILTINS: UrpBuiltin[] = [
 	{ name: 'GetWorldToObjectMatrix', kind: 'function', detail: 'GetWorldToObjectMatrix() — returns the current world-to-object matrix.' },
 	{ name: 'SafeNormalize', kind: 'function', detail: 'SafeNormalize(v) — normalizes a vector, returning zero instead of NaN for a zero-length input.' },
 ];
+
+/** Core + extended entries, de-duplicated by name (core entries win). */
+export const URP_BUILTINS: UrpBuiltin[] = (() => {
+	const seen = new Set(CORE_URP_BUILTINS.map((b) => b.name));
+	return [...CORE_URP_BUILTINS, ...URP_EXTENDED_BUILTINS.filter((b) => !seen.has(b.name))];
+})();
+
+export { URP_STRUCTS } from './urpBuiltinsExtended';

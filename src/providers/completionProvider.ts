@@ -8,22 +8,22 @@ import * as vscode from 'vscode';
 import functionsData from '../data/functions.json';
 import keywordsData from '../data/keywords.json';
 import propertySnippetsData from '../../snippets/shaderlab-kit.json';
-import { URP_BUILTINS } from '../data/urpBuiltins';
+import { URP_BUILTINS, URP_STRUCTS } from '../data/urpBuiltins';
 import { getSemanticDoc } from '../data/hlslSemantics';
-import { maskLine } from '../utils/commentMask';
+import {
+	KEYWORD_PRAGMA_PATTERN, PRAGMAS, PRAGMA_RENDERERS, PRAGMA_TARGETS, PROPERTY_ATTRIBUTES, SHADERLAB_STATEMENTS,
+	STATE_VALUES, STENCIL_STATEMENTS, TAG_KEYS, TAG_VALUES,
+} from '../data/shaderlabSyntax';
+import { ADVANCE_CARRY_LENGTH, advanceBlockStack, findVariableStructType } from '../analysis/shaderSymbols';
+import { ResolvedSymbols, getResolvedSymbols } from '../analysis/documentSymbols';
+import { maskDocument, maskLine } from '../utils/commentMask';
 import { resolveInclude, splitPackageInclude } from '../unity/includeResolver';
+import { builtinDoc, entryDoc, functionDoc, keywordDoc, macroDoc, propertyDoc, structDoc } from './symbolDocs';
 
 export const SHADERLAB_PRO_DOCUMENT_SELECTOR: vscode.DocumentSelector = [
 	{ language: 'shaderlab' },
 	{ language: 'hlsl' },
 ];
-
-const PASS_STATE_VALUES: Record<string, string[]> = {
-	Blend: ['One', 'Zero', 'SrcAlpha', 'OneMinusSrcAlpha', 'DstAlpha', 'OneMinusDstAlpha', 'SrcColor', 'OneMinusSrcColor', 'DstColor', 'OneMinusDstColor'],
-	ZWrite: ['On', 'Off'],
-	ZTest: ['Less', 'Greater', 'LEqual', 'GEqual', 'Equal', 'NotEqual', 'Always'],
-	Cull: ['Back', 'Front', 'Off'],
-};
 
 /** ShaderLab `Properties { }` entry types: the snippet tail inserted after `_Name ("Label", `, and a
  *  one-line doc of the full declaration syntax (reused by hoverProvider.ts for property-type hovers). */
@@ -43,31 +43,30 @@ export const PROPERTY_TYPE_SNIPPETS: { label: string; insertAfterComma: string; 
 export const PROPERTY_TYPE_POSITION_PATTERN = /_\w+\s*\(\s*"[^"]*"\s*,\s*$/;
 
 /**
- * Whether `position` is lexically inside an unclosed `Properties { ... }` block. Scans the
- * comment/string-masked text from document start to `position`, tracking a brace-depth stack
- * labeled by the identifier preceding each `{` (e.g. "Properties", "SubShader", "Pass").
+ * Block-label stack at `position`: one label per unclosed `{` (`Shader`, `SubShader`, `Pass`,
+ * `Properties`, `Tags`, `Stencil`, function names, …) plus an `HLSL` pseudo-block between
+ * `HLSLPROGRAM`/`HLSLINCLUDE` and `ENDHLSL`. Empty for plain `.hlsl` include files.
  */
-export function isInsidePropertiesBlock(document: vscode.TextDocument, position: vscode.Position): boolean {
+export function getBlockStack(document: vscode.TextDocument, position: vscode.Position): string[] {
 	const text = document.getText(new vscode.Range(new vscode.Position(0, 0), position));
-	const masked = text.split('\n').map((line) => maskLine(line).masked).join('\n');
 	const stack: string[] = [];
-	for (let i = 0; i < masked.length; i++) {
-		const ch = masked[i];
-		if (ch === '{') {
-			let j = i - 1;
-			while (j >= 0 && /\s/.test(masked[j])) {
-				j--;
-			}
-			const end = j + 1;
-			while (j >= 0 && /\w/.test(masked[j])) {
-				j--;
-			}
-			stack.push(masked.slice(j + 1, end));
-		} else if (ch === '}') {
-			stack.pop();
-		}
+	let carry = '';
+	for (const line of maskDocument(text).split('\n')) {
+		advanceBlockStack(stack, line, carry);
+		carry = (carry + line + '\n').slice(-ADVANCE_CARRY_LENGTH);
 	}
+	return stack;
+}
+
+/** Whether `position` is lexically inside an unclosed `Properties { ... }` block. */
+export function isInsidePropertiesBlock(document: vscode.TextDocument, position: vscode.Position): boolean {
+	const stack = getBlockStack(document, position);
 	return stack.length > 0 && stack[stack.length - 1] === 'Properties';
+}
+
+/** True in ShaderLab structure (Shader/SubShader/Pass/…), false inside HLSL code or in a bare include file. */
+function isShaderLabScope(stack: string[]): boolean {
+	return stack.length > 0 && !stack.includes('HLSL');
 }
 
 /** Cg-pipeline keywords present in the ported keywords.json that are out of scope and must be excluded. */
@@ -189,10 +188,12 @@ function buildUrpBuiltinItems(): vscode.CompletionItem[] {
 	return URP_BUILTINS.map((builtin) => {
 		const kind = builtin.kind === 'function' ? vscode.CompletionItemKind.Function
 			: builtin.kind === 'macro' ? vscode.CompletionItemKind.Keyword
-				: vscode.CompletionItemKind.Constant;
+				: builtin.kind === 'struct' ? vscode.CompletionItemKind.Struct
+					: builtin.kind === 'keyword' ? vscode.CompletionItemKind.EnumMember
+						: vscode.CompletionItemKind.Constant;
 		const item = new vscode.CompletionItem(builtin.name, kind);
-		item.detail = builtin.detail;
-		item.documentation = new vscode.MarkdownString(builtin.detail);
+		item.detail = builtin.detail.split(' — ')[0];
+		item.documentation = builtinDoc(builtin);
 
 		if (builtin.kind === 'function') {
 			const argNames = parseArgNamesFromDetail(builtin.detail, builtin.name) ?? [];
@@ -211,13 +212,208 @@ function maskedPrefix(document: vscode.TextDocument, position: vscode.Position):
 	return maskLine(line).masked;
 }
 
-function passStateValueItems(prefix: string): vscode.CompletionItem[] | undefined {
-	const match = prefix.match(/\b(Blend|ZWrite|ZTest|Cull)\s+[A-Za-z]*$/);
-	if (!match) {
+function enumItems(values: string[]): vscode.CompletionItem[] {
+	return values.map((value) => new vscode.CompletionItem(value, vscode.CompletionItemKind.EnumMember));
+}
+
+/** Comment/string-masked document text from the start up to `position`. */
+function maskedTextBefore(document: vscode.TextDocument, position: vscode.Position): string {
+	return maskDocument(document.getText(new vscode.Range(new vscode.Position(0, 0), position)));
+}
+
+function passStateValueItems(prefix: string, stack: string[]): vscode.CompletionItem[] | undefined {
+	const top = stack[stack.length - 1];
+	if (top === 'Stencil') {
+		const stencil = prefix.match(/^\s*(Comp|Pass|Fail|ZFail)(Front|Back)?\s+\w*$/);
+		return stencil ? enumItems(STENCIL_STATEMENTS[stencil[1] + (stencil[2] ?? '')]) : undefined;
+	}
+	if (!isShaderLabScope(stack)) {
 		return undefined;
 	}
-	const values = PASS_STATE_VALUES[match[1]];
-	return values.map((value) => new vscode.CompletionItem(value, vscode.CompletionItemKind.EnumMember));
+	const match = prefix.match(/\b(Blend|BlendOp|ZWrite|ZTest|Cull|ColorMask|AlphaToMask)\s+((?:\w+\s+)*)\w*$/);
+	// Only `Blend src dst` takes more than one word.
+	if (!match || (match[1] !== 'Blend' && match[2] !== '')) {
+		return undefined;
+	}
+	return enumItems(STATE_VALUES[match[1]]);
+}
+
+/** `Tags { "Key" = "Value" }` keys and values; uses the raw prefix because strings are masked elsewhere. */
+function tagItems(rawPrefix: string, stack: string[]): vscode.CompletionItem[] | undefined {
+	if (/\/\//.test(rawPrefix)) {
+		return undefined;
+	}
+	const inTags = stack[stack.length - 1] === 'Tags' || /\bTags\s*\{[^}]*$/.test(rawPrefix);
+	if (!inTags) {
+		return undefined;
+	}
+	const value = rawPrefix.match(/"(\w+)"\s*=\s*"[\w+\-]*$/);
+	if (value) {
+		return (TAG_VALUES[value[1]] ?? []).map(({ name, doc }) => {
+			const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.EnumMember);
+			item.documentation = entryDoc(doc);
+			return item;
+		});
+	}
+	if (/"\w*$/.test(rawPrefix)) {
+		return TAG_KEYS.map(({ name, doc }) => {
+			const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Property);
+			item.documentation = entryDoc(doc);
+			return item;
+		});
+	}
+	return undefined;
+}
+
+function propertyAttributeItems(prefix: string): vscode.CompletionItem[] | undefined {
+	if (!/\[\s*\w*$/.test(prefix)) {
+		return undefined;
+	}
+	return PROPERTY_ATTRIBUTES.map(({ name, snippet, doc }) => {
+		const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Keyword);
+		item.insertText = new vscode.SnippetString(snippet ?? name);
+		item.detail = `Material property attribute [${name}]`;
+		item.documentation = entryDoc(doc);
+		return item;
+	});
+}
+
+function symbolKeywordItems(symbols: ResolvedSymbols): vscode.CompletionItem[] {
+	const items = new Map<string, vscode.CompletionItem>();
+	for (const keyword of symbols.all.keywords) {
+		const item = new vscode.CompletionItem(keyword.name, vscode.CompletionItemKind.EnumMember);
+		item.detail = keyword.drivenBy ? `Shader keyword (set by ${keyword.drivenBy})` : 'Shader keyword';
+		item.documentation = keywordDoc(keyword);
+		item.sortText = `0_${keyword.name}`;
+		items.set(keyword.name, item);
+	}
+	for (const builtin of URP_BUILTINS.filter((b) => b.kind === 'keyword')) {
+		if (!items.has(builtin.name)) {
+			const item = new vscode.CompletionItem(builtin.name, vscode.CompletionItemKind.EnumMember);
+			item.detail = 'Shader keyword';
+			item.documentation = builtinDoc(builtin);
+			item.sortText = `1_${builtin.name}`;
+			items.set(builtin.name, item);
+		}
+	}
+	return [...items.values()];
+}
+
+function pragmaItems(prefix: string, symbols: () => Promise<ResolvedSymbols>): Promise<vscode.CompletionItem[]> | undefined {
+	const names = prefix.match(/^\s*#\s*pragma\s+(\w*)$/);
+	if (names) {
+		return Promise.resolve(PRAGMAS.map(({ name, snippet, doc }) => {
+			const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Keyword);
+			item.insertText = new vscode.SnippetString(snippet ?? name);
+			item.detail = '#pragma';
+			item.documentation = entryDoc(doc);
+			return item;
+		}));
+	}
+	const entry = prefix.match(/^\s*#\s*pragma\s+(vertex|fragment|geometry|hull|domain)\s+\w*$/);
+	if (entry) {
+		return symbols().then((resolved) => resolved.all.functions.map((fn) => {
+			const item = new vscode.CompletionItem(fn.name, vscode.CompletionItemKind.Function);
+			item.detail = `${fn.returnType} ${fn.name}(${fn.params})`;
+			item.documentation = functionDoc(fn, resolved.origins.get(fn.name));
+			return item;
+		}));
+	}
+	if (/^\s*#\s*pragma\s+target\s+[\w.]*$/.test(prefix)) {
+		return Promise.resolve(enumItems(PRAGMA_TARGETS));
+	}
+	if (/^\s*#\s*pragma\s+(only|exclude)_renderers\s+(?:\w+\s+)*\w*$/.test(prefix)) {
+		return Promise.resolve(enumItems(PRAGMA_RENDERERS));
+	}
+	const keywordLine = prefix.match(/^\s*#\s*pragma\s+(\w+)\s+(?:\S+\s+)*\w*$/);
+	if (keywordLine && KEYWORD_PRAGMA_PATTERN.test(keywordLine[1])) {
+		return symbols().then((resolved) => {
+			const placeholder = new vscode.CompletionItem('_', vscode.CompletionItemKind.EnumMember);
+			placeholder.detail = 'No-keyword placeholder (the variant with the keyword off)';
+			placeholder.sortText = '0__';
+			return [placeholder, ...symbolKeywordItems(resolved)];
+		});
+	}
+	return undefined;
+}
+
+function isPreprocessorConditionContext(prefix: string): boolean {
+	return /^\s*#\s*(?:if|elif|ifdef|ifndef)\b[^\n]*$/.test(prefix) || /\bdefined\s*\(\s*\w*$/.test(prefix);
+}
+
+/** Struct member completion for `var.` — user structs and well-known URP structs. */
+function memberItems(maskedBefore: string, symbols: ResolvedSymbols): vscode.CompletionItem[] | undefined {
+	const access = maskedBefore.match(/(?<![\w.])([A-Za-z_]\w*)\.(\w*)$/);
+	if (!access) {
+		return undefined;
+	}
+	const typeNames = new Set([...symbols.all.structs.map((st) => st.name), ...URP_STRUCTS.map((st) => st.name)]);
+	const typeName = findVariableStructType(maskedBefore.slice(0, maskedBefore.length - access[0].length), access[1], typeNames);
+	if (!typeName) {
+		return undefined;
+	}
+	const userStruct = symbols.all.structs.find((st) => st.name === typeName);
+	if (userStruct) {
+		return userStruct.fields.map((field) => {
+			const item = new vscode.CompletionItem(field.name, vscode.CompletionItemKind.Field);
+			item.detail = `${field.type} ${field.name}${field.semantic ? ` : ${field.semantic}` : ''}`;
+			item.documentation = new vscode.MarkdownString(`Member of \`${typeName}\``);
+			return item;
+		});
+	}
+	const builtin = URP_STRUCTS.find((st) => st.name === typeName);
+	return builtin?.members.map((member) => {
+		const item = new vscode.CompletionItem(member.name, vscode.CompletionItemKind.Field);
+		item.detail = `${member.type} ${member.name}`;
+		item.documentation = new vscode.MarkdownString(`${member.doc}\n\n_Member of \`${typeName}\` (${builtin.source})_`);
+		return item;
+	});
+}
+
+function userSymbolItems(symbols: ResolvedSymbols): vscode.CompletionItem[] {
+	const items: vscode.CompletionItem[] = [];
+	const { all, origins } = symbols;
+	for (const property of all.properties) {
+		const item = new vscode.CompletionItem(property.name, vscode.CompletionItemKind.Variable);
+		item.detail = `${property.type} — "${property.label}"`;
+		item.documentation = propertyDoc(property);
+		item.sortText = `0_${property.name}`;
+		items.push(item);
+	}
+	for (const fn of all.functions) {
+		const item = new vscode.CompletionItem(fn.name, vscode.CompletionItemKind.Function);
+		item.detail = `${fn.returnType} ${fn.name}(${fn.params})`;
+		item.documentation = functionDoc(fn, origins.get(fn.name));
+		item.insertText = buildCallSnippet(fn.name, parseArgNamesFromSignature(`${fn.name}(${fn.params})`), false);
+		item.sortText = `0_${fn.name}`;
+		items.push(item);
+	}
+	for (const macro of all.macros) {
+		const item = new vscode.CompletionItem(macro.name, macro.params !== undefined ? vscode.CompletionItemKind.Function : vscode.CompletionItemKind.Constant);
+		item.detail = `#define ${macro.name}${macro.params !== undefined ? `(${macro.params})` : ''} ${macro.value}`.trimEnd();
+		item.documentation = macroDoc(macro, origins.get(macro.name));
+		item.sortText = `0_${macro.name}`;
+		items.push(item);
+	}
+	for (const struct of all.structs) {
+		const item = new vscode.CompletionItem(struct.name, vscode.CompletionItemKind.Struct);
+		item.detail = `struct ${struct.name}`;
+		item.documentation = structDoc(struct, origins.get(struct.name));
+		item.sortText = `0_${struct.name}`;
+		items.push(item);
+	}
+	return items;
+}
+
+function shaderLabStatementItems(stack: string[]): vscode.CompletionItem[] {
+	const top = stack[stack.length - 1] as 'Shader' | 'SubShader' | 'Pass';
+	return SHADERLAB_STATEMENTS.filter((entry) => entry.scopes.includes(top)).map(({ name, snippet, doc }) => {
+		const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Keyword);
+		item.insertText = new vscode.SnippetString(snippet ?? name);
+		item.detail = 'ShaderLab';
+		item.documentation = entryDoc(doc);
+		return item;
+	});
 }
 
 function propertyTypeItems(
@@ -241,15 +437,15 @@ function propertyLineSnippetItems(document: vscode.TextDocument, position: vscod
 	if (prefix.trim() !== '' || !isInsidePropertiesBlock(document, position)) {
 		return undefined;
 	}
-	return Object.entries(propertySnippetsData as Record<string, { prefix: string; body: string | string[]; description?: string }>).map(
-		([name, snippet]) => {
+	return Object.entries(propertySnippetsData as Record<string, { prefix: string; body: string | string[]; description?: string }>)
+		.filter(([name]) => name.startsWith('ShaderLab Property'))
+		.map(([name, snippet]) => {
 			const item = new vscode.CompletionItem(snippet.prefix, vscode.CompletionItemKind.Snippet);
 			const body = Array.isArray(snippet.body) ? snippet.body.join('\n') : snippet.body;
 			item.insertText = new vscode.SnippetString(body);
 			item.detail = snippet.description ?? name;
 			return item;
-		},
-	);
+		});
 }
 
 async function includePathItems(document: vscode.TextDocument, prefix: string): Promise<vscode.CompletionItem[] | undefined> {
@@ -308,15 +504,38 @@ export class ShaderLabCompletionProvider implements vscode.CompletionItemProvide
 		}
 
 		const prefix = maskedPrefix(document, position);
+		const rawPrefix = document.lineAt(position.line).text.substring(0, position.character);
 
 		const includeItems = await includePathItems(document, prefix);
 		if (includeItems) {
 			return includeItems;
 		}
 
-		const passStateItems = passStateValueItems(prefix);
+		const stack = getBlockStack(document, position);
+		let symbolsPromise: Promise<ResolvedSymbols> | undefined;
+		const symbols = () => (symbolsPromise ??= getResolvedSymbols(document));
+
+		const tagCompletions = tagItems(rawPrefix, stack);
+		if (tagCompletions) {
+			return tagCompletions;
+		}
+
+		const passStateItems = passStateValueItems(prefix, stack);
 		if (passStateItems) {
 			return passStateItems;
+		}
+
+		const pragmaCompletions = await pragmaItems(prefix, symbols);
+		if (pragmaCompletions) {
+			return pragmaCompletions;
+		}
+
+		const insideProperties = stack[stack.length - 1] === 'Properties';
+		if (insideProperties) {
+			const attributeCompletions = propertyAttributeItems(prefix);
+			if (attributeCompletions) {
+				return attributeCompletions;
+			}
 		}
 
 		const propertyTypeCompletions = propertyTypeItems(document, position, prefix);
@@ -326,10 +545,35 @@ export class ShaderLabCompletionProvider implements vscode.CompletionItemProvide
 
 		const propertyLineCompletions = propertyLineSnippetItems(document, position, prefix);
 		if (propertyLineCompletions) {
-			return [...propertyLineCompletions, ...this.functionItems, ...this.keywordItems, ...this.urpBuiltinItems];
+			return propertyLineCompletions;
 		}
 
-		return [...this.functionItems, ...this.keywordItems, ...this.urpBuiltinItems];
+		const resolved = await symbols();
+
+		const members = memberItems(maskedTextBefore(document, position), resolved);
+		if (members) {
+			return members;
+		}
+
+		if (isPreprocessorConditionContext(prefix)) {
+			const macros = resolved.all.macros.map((macro) => {
+				const item = new vscode.CompletionItem(macro.name, vscode.CompletionItemKind.Constant);
+				item.documentation = macroDoc(macro, resolved.origins.get(macro.name));
+				item.sortText = `0_${macro.name}`;
+				return item;
+			});
+			const knownMacros = this.urpBuiltinItems.filter((item) => item.kind === vscode.CompletionItemKind.Keyword);
+			return [...symbolKeywordItems(resolved), ...macros, ...knownMacros];
+		}
+
+		if (insideProperties || stack[stack.length - 1] === 'Tags' || stack[stack.length - 1] === 'Stencil') {
+			return stack[stack.length - 1] === 'Stencil'
+				? Object.keys(STENCIL_STATEMENTS).concat(['Ref', 'ReadMask', 'WriteMask']).map((name) => new vscode.CompletionItem(name, vscode.CompletionItemKind.Keyword))
+				: undefined;
+		}
+
+		const statements = isShaderLabScope(stack) ? shaderLabStatementItems(stack) : [];
+		return [...userSymbolItems(resolved), ...statements, ...this.functionItems, ...this.keywordItems, ...this.urpBuiltinItems];
 	}
 }
 
@@ -340,6 +584,8 @@ export function registerCompletionProvider(context: vscode.ExtensionContext): vo
 			new ShaderLabCompletionProvider(),
 			'"',
 			'/',
+			'[',
+			'.',
 		),
 	);
 }

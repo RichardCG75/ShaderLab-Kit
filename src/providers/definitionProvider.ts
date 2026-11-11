@@ -3,6 +3,7 @@
 // workspace. Gated by shaderlabKit.suggest.enable. HLSL/URP scope only — see shaderlab-domain skill.
 
 import * as vscode from 'vscode';
+import { getResolvedSymbols } from '../analysis/documentSymbols';
 import { resolveInclude } from '../unity/includeResolver';
 import { findFallbackDirective, findIncludeDirective } from '../utils/lineDirectives';
 import { SHADERLAB_PRO_DOCUMENT_SELECTOR, isSuggestEnabled } from './completionProvider';
@@ -56,7 +57,30 @@ export class ShaderLabDefinitionProvider implements vscode.DefinitionProvider {
 			return findFallbackShaderLocation(fallback.value);
 		}
 
-		return undefined;
+		return this.findUserSymbol(document, position);
+	}
+
+	/** Jumps to the declaration of a property, function, macro or struct (in this file or a local include). */
+	private async findUserSymbol(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.Location | undefined> {
+		const wordRange = document.getWordRangeAtPosition(position);
+		if (!wordRange) {
+			return undefined;
+		}
+		const word = document.getText(wordRange);
+		const symbols = await getResolvedSymbols(document);
+		const origin = symbols.origins.get(word);
+		if (origin) {
+			const uri = origin.file ? vscode.Uri.file(origin.file) : document.uri;
+			return new vscode.Location(uri, new vscode.Position(origin.line, 0));
+		}
+		const property = symbols.local.properties.find((p) => p.name === word);
+		if (property && property.line !== position.line) {
+			return new vscode.Location(document.uri, new vscode.Position(property.line, 0));
+		}
+		const keyword = symbols.local.keywords.find((k) => k.name === word && k.pragmas.length > 0);
+		return keyword && keyword.line !== position.line
+			? new vscode.Location(document.uri, new vscode.Position(keyword.line, 0))
+			: undefined;
 	}
 }
 
