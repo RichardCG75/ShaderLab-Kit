@@ -1,7 +1,7 @@
 // Pure (vscode-free) typed model of a shader's material properties: turns the raw `ShaderProperty`
 // records from `extractSymbols` into Inspector-style controls (what widget to show, its range, options,
 // default value and the shader keyword it drives). It adds a typed layer on top of `shaderSymbols.ts`
-// and never changes it. Used by the shader preview's material editor; see docs/preview-feature-design.md.
+// and never changes it. Used by the shader preview's material editor.
 
 import { keywordEnumKeyword, type ShaderProperty } from './shaderSymbols';
 

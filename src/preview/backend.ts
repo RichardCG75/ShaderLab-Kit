@@ -1,7 +1,6 @@
 // The preview backend seam: turns a shader document into something the webview can draw. The MVP
 // ships only the stock-material backend (stockMaterialBackend.ts). Later backends (a restricted
-// HLSL->GLSL translator, a Unity Editor bridge) implement the same interface; see
-// docs/preview-feature-design.md §3.
+// HLSL->GLSL translator, a Unity Editor bridge) implement the same interface.
 
 import type { PropertyControl } from '../analysis/materialProperties';
 import type { PreviewProgram, Unsupported } from './protocol';

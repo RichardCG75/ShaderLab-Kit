@@ -111,7 +111,7 @@ Open a `.shader` file and click the preview button in the editor title bar, or r
 - **Some texture formats.** Files must be PNG, JPEG, WebP, GIF or BMP, up to 32 MB; TGA, PSD and EXR aren't supported.
 - **Legacy shaders.** `CGPROGRAM`/surface shaders are out of scope, and HDRP-only SubShaders aren't drawn.
 
-For exact results, check your shader in Unity. The planned next steps (running a restricted HLSL subset, then an optional Unity Editor bridge) are in [docs/preview-feature-design.md](docs/preview-feature-design.md).
+For exact results, check your shader in Unity. Next on the roadmap: running a restricted subset of shader HLSL, then an optional Unity Editor bridge.
 
 ## Requirements
 
@@ -154,7 +154,7 @@ All settings live under **ShaderLab Kit** in VS Code's Settings UI (`shaderlabKi
 - Semantic shader-variant analysis (`multi_compile`/`shader_feature` combination counting).
 - A symbol cache for faster, indexed go-to-definition on large projects.
 - Selection-aware range formatting (today, formatting a selection reformats the whole file).
-- Shader preview (experimental today): run a restricted subset of shader HLSL (unlit and simple-lit), `_Time`, Cube textures and custom meshes; later `.mat` import/export and an optional Unity Editor bridge. See [docs/preview-feature-design.md](docs/preview-feature-design.md).
+- Shader preview (experimental today): run a restricted subset of shader HLSL (unlit and simple-lit), `_Time`, Cube textures and custom meshes; later `.mat` import/export and an optional Unity Editor bridge.
 
 ---
 

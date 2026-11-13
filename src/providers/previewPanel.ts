@@ -1,7 +1,7 @@
 // Shader preview panel (extension-host side): a singleton webview beside the editor that shows the
 // active .shader file on a mesh with an Inspector-style material editor. This side owns document
 // tracking, live refresh, persistence (workspaceState) and file access; rendering happens in the
-// webview bundle (src/webview/main.ts, built to dist/webview.js). See docs/preview-feature-design.md.
+// webview bundle (src/webview/main.ts, built to dist/webview.js).
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
