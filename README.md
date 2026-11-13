@@ -33,6 +33,7 @@ ShaderLab Kit adds real IntelliSense to Unity's `.shader`, `.hlsl`, `.cginc`, an
 - 🔗 **Go-to-definition** — jump straight to an `#include`d file or a `Fallback` shader.
 - 📁 **Unity-aware `#include` resolution** — understands Unity project layout and Package Manager paths (`Packages/...`, `Library/PackageCache/...`), with Unity Editor auto-detection.
 - ⚠️ **Diagnostics** — unbalanced brackets, misspelled Unity/URP macros ("did you mean `GetMainLight`?"), wrong argument counts for HLSL intrinsics, and keyword bookkeeping: a `[Toggle]`/`[KeywordEnum]` that no `#pragma` declares, a material-driven keyword that should be `_local`, and typos in `#if defined(_KEYWORD)`.
+- 🧪 **Shader preview** *(experimental)* — a 3D view beside your `.shader` file with an Inspector-style material editor generated from `Properties { }`. Sliders, color pickers with `[HDR]`, toggles, keyword enums and texture slots update the view live. It previews the *material* with your values using a stand-in material; it doesn't run your shader's HLSL. See [Shader preview](#shader-preview-experimental) for exactly what it can and can't do.
 - ✂️ **Snippets** — a full URP shader template, `Pass` blocks, ShadowCaster and DepthOnly passes, a shared `UnityPerMaterial` `CBUFFER`, structs, vertex-transform boilerplate, keyword pragmas, include guards, and ShaderLab property declarations (including `[Toggle]`, `[KeywordEnum]`, `[HDR]`).
 
 **Not supported:** Unity's legacy Cg pipeline (`CGPROGRAM`/`UnityCG.cginc`/surface shaders). ShaderLab Kit targets `HLSLPROGRAM` and the Universal Render Pipeline (URP).
@@ -64,6 +65,53 @@ What an intrinsic does, plus every overload.
 ShaderLab Kit registers as the formatter for shader files.
 
 ![VS Code's Select a formatter picker with ShaderLab Kit marked as the default](assets/screenshots/formatter.png)
+
+## Shader preview (experimental)
+
+> 🧪 **Experimental.** The preview is an early version. Behaviour, settings and stored values may change between releases, and it has rough edges. Please [report issues](../../issues).
+
+Open a `.shader` file and click the preview button in the editor title bar, or run **ShaderLab Kit: Open Shader Preview (Experimental)**. A 3D view opens beside the editor with an Inspector-style material editor.
+
+![A shader open in VS Code with the preview beside it: a textured sphere in the middle and the material inspector on the right, with sliders, color pickers, texture slots and render-state dropdowns updating the sphere live](assets/preview/preview.gif)
+
+**Important: the preview does not run your shader's HLSL.** Unity shaders depend on Unity's include library and compiler, which can't run inside VS Code. Instead the preview draws a stand-in material driven by your shader's properties. It shows how the *material* looks with your values, not what your shader *code* computes. A banner under the view says which properties are previewed and which aren't.
+
+### What it can do
+
+- **Inspector built from `Properties { }`**:
+  - Number fields for Float and Int.
+  - Sliders for Range, including `[PowerSlider]` and `[IntRange]`.
+  - Color pickers with alpha and `[HDR]` intensity.
+  - Vector fields.
+  - Checkboxes for `[Toggle]`, `[ToggleOff]` and `[ToggleUI]`.
+  - Dropdowns for `[KeywordEnum]` and `[Enum]`, including `UnityEngine.Rendering.CullMode`/`BlendMode`/`CompareFunction`.
+  - 2D texture slots with tiling and offset.
+  - Layout from `[Header]`, `[Space]` and `[HideInInspector]`.
+- **Two looks**, picked automatically:
+  - **Unlit**: base color × base map.
+  - **Lit**, for shaders that include URP's `Lighting.hlsl`, call `GetMainLight()`/`UniversalFragmentPBR()`, or declare `_Metallic`/`_Smoothness`: a generic PBR material with base color/map, normal map, metallic, smoothness and emission.
+- **Property recognition** by attribute (`[MainTexture]`, `[MainColor]`, `[Normal]`) or by URP's usual names (`_BaseMap`/`_MainTex`, `_BaseColor`/`_Color`, `_BumpMap`, `_Metallic`, `_Smoothness`, `_EmissionColor`, `_Cutoff`).
+- **Render state** from the drawn pass: `Cull`, `ZWrite`, `ZTest`, `Blend`, `ColorMask 0` and alpha clip. This includes `[_Property]` references such as `Cull [_Cull]`.
+- **Pass selection**: the first `UniversalForward` / `UniversalForwardOnly` / `SRPDefaultUnlit` / untagged pass of the first URP-compatible SubShader. ShadowCaster, DepthOnly, Meta and similar passes are skipped.
+- **Scene controls**: sphere, cube, plane, cylinder or torus; orbit camera; light direction and intensity; ambient; background color; wireframe; turntable rotation.
+- **Live updates**: refreshes as you type (`shaderlabKit.preview.refreshDelay`) and immediately on save, and follows the active `.shader` editor.
+- **Remembered values**: kept per shader in VS Code's workspace state, never written to your project. **Reset** restores the shader's declared defaults.
+- **Keywords**: shows which ones the current `[Toggle]`/`[KeywordEnum]` values enable.
+
+### What it can't do (yet)
+
+- **Run your shader's code**: custom vertex or fragment logic, `_Time` animation, vertex displacement, scrolling UVs, depth effects (foam, soft particles) and so on. Shader-driven movement isn't shown.
+- **Compile keyword variants.** Toggles and keyword enums show their keywords but don't change what is drawn.
+- **Evaluate `#include`s**, render multiple passes, or resolve `UsePass`/`GrabPass`.
+- **Cube and 3D textures.** They appear in the inspector but aren't drawn.
+- **Shadows, GI, reflection probes, fog or additional lights.**
+- **Custom meshes.**
+- **Unity `.mat` files**: no reading or writing.
+- **`BlendOp` and `Stencil`.**
+- **Some texture formats.** Files must be PNG, JPEG, WebP, GIF or BMP, up to 32 MB; TGA, PSD and EXR aren't supported.
+- **Legacy shaders.** `CGPROGRAM`/surface shaders are out of scope, and HDRP-only SubShaders aren't drawn.
+
+For exact results, check your shader in Unity. The planned next steps (running a restricted HLSL subset, then an optional Unity Editor bridge) are in [docs/preview-feature-design.md](docs/preview-feature-design.md).
 
 ## Requirements
 
@@ -99,12 +147,14 @@ All settings live under **ShaderLab Kit** in VS Code's Settings UI (`shaderlabKi
 | `shaderlabKit.include.enable` | `true` | Enable `#include` resolution. |
 | `shaderlabKit.include.customPaths` | `[]` | Extra search paths for resolving `#include`. |
 | `shaderlabKit.include.unityEditorPathOverride` | `""` | Manual Unity Editor path, for when auto-detection fails. |
+| `shaderlabKit.preview.refreshDelay` | `400` | *(Experimental preview)* Milliseconds after the last edit before the shader preview refreshes (saving refreshes immediately). |
 
 ## Roadmap
 
 - Semantic shader-variant analysis (`multi_compile`/`shader_feature` combination counting).
 - A symbol cache for faster, indexed go-to-definition on large projects.
 - Selection-aware range formatting (today, formatting a selection reformats the whole file).
+- Shader preview (experimental today): run a restricted subset of shader HLSL (unlit and simple-lit), `_Time`, Cube textures and custom meshes; later `.mat` import/export and an optional Unity Editor bridge. See [docs/preview-feature-design.md](docs/preview-feature-design.md).
 
 ---
 

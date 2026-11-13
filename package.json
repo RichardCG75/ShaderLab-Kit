@@ -2,8 +2,8 @@
   "name": "shaderlab-kit",
   "displayName": "ShaderLab Kit",
   "publisher": "rgx-studio",
-  "description": "Unity HLSL/URP shader tooling for VS Code: completion, hover docs, diagnostics, formatting, go-to-definition, and snippets.",
-  "version": "0.2.1",
+  "description": "Unity HLSL/URP shader tooling for VS Code: completion, hover docs, diagnostics, formatting, go-to-definition, snippets, and an experimental 3D material preview.",
+  "version": "0.3.0",
   "icon": "assets/icon.png",
   "license": "MIT",
   "repository": {
@@ -21,10 +21,41 @@
   ],
   "activationEvents": [
     "onLanguage:shaderlab",
-    "onLanguage:hlsl"
+    "onLanguage:hlsl",
+    "onWebviewPanel:shaderlabKit.preview"
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "shaderlabKit.preview.open",
+        "title": "Open Shader Preview (Experimental)",
+        "category": "ShaderLab Kit",
+        "icon": "$(open-preview)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "shaderlabKit.preview.open",
+          "when": "editorLangId == shaderlab || resourceExtname == .shader",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "shaderlabKit.preview.open",
+          "when": "resourceExtname == .shader",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "shaderlabKit.preview.open",
+          "when": "editorLangId == shaderlab || resourceExtname == .shader"
+        }
+      ]
+    },
     "grammars": [
       {
         "scopeName": "shaderlabKit.injection",
@@ -141,6 +172,13 @@
           "default": [],
           "description": "Additional search paths (absolute or workspace-relative) to resolve #include directives against."
         },
+        "shaderlabKit.preview.refreshDelay": {
+          "type": "number",
+          "default": 400,
+          "minimum": 0,
+          "maximum": 5000,
+          "description": "(Experimental) Milliseconds to wait after the last edit before the shader preview refreshes. Saving refreshes immediately."
+        },
         "shaderlabKit.include.unityEditorPathOverride": {
           "type": "string",
           "default": "",
@@ -159,24 +197,28 @@
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
-    "check-types": "tsc --noEmit",
+    "check-types": "tsc --noEmit && tsc --noEmit -p src/webview/tsconfig.json",
     "lint": "eslint src",
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
-    "typescript-eslint": "^8.61.1",
-    "eslint": "^10.5.0",
+    "@types/three": "^0.187.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.0.0",
     "esbuild": "^0.28.1",
+    "eslint": "^10.5.0",
     "npm-run-all": "^4.1.5",
     "typescript": "^6.0.3",
-    "@vscode/test-cli": "^0.0.15",
-    "@vscode/test-electron": "^3.0.0"
+    "typescript-eslint": "^8.61.1"
   },
   "overrides": {
     "diff": "^8.0.4",
     "serialize-javascript": "^7.0.6"
+  },
+  "dependencies": {
+    "three": "^0.187.0"
   }
 }

@@ -1,0 +1,15 @@
+{
+	// Type-checks the preview webview bundle (browser code, DOM types). The root tsconfig.json excludes
+	// this folder because it targets Node and has no DOM lib. esbuild bundles it to dist/webview.js.
+	"compilerOptions": {
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"target": "ES2022",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"types": [],
+		"strict": true,
+		"noEmit": true,
+		"skipLibCheck": true
+	},
+	"include": ["./**/*.ts"]
+}

@@ -42,11 +42,29 @@ async function main() {
 			esbuildProblemMatcherPlugin,
 		],
 	});
+	// Preview webview bundle (browser code; see src/providers/previewPanel.ts).
+	const webviewCtx = await esbuild.context({
+		entryPoints: [
+			'src/webview/main.ts'
+		],
+		bundle: true,
+		format: 'iife',
+		minify: production,
+		sourcemap: !production,
+		sourcesContent: false,
+		platform: 'browser',
+		target: 'es2022',
+		outfile: 'dist/webview.js',
+		logLevel: 'silent',
+		plugins: [
+			esbuildProblemMatcherPlugin,
+		],
+	});
 	if (watch) {
-		await ctx.watch();
+		await Promise.all([ctx.watch(), webviewCtx.watch()]);
 	} else {
-		await ctx.rebuild();
-		await ctx.dispose();
+		await Promise.all([ctx.rebuild(), webviewCtx.rebuild()]);
+		await Promise.all([ctx.dispose(), webviewCtx.dispose()]);
 	}
 }
 

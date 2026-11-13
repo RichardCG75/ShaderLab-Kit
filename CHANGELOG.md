@@ -2,10 +2,16 @@
 
 All notable changes to ShaderLab Kit will be documented in this file.
 
-## [Unreleased]
+## [0.3.0]
 
 ### Added
 
+- **Experimental:** shader preview. **ShaderLab Kit: Open Shader Preview (Experimental)** opens a 3D view beside a `.shader` file, with an Inspector-style material editor built from `Properties { }`.
+  - Controls: Float/Int/Range (`[PowerSlider]`, `[IntRange]`), Color (`[HDR]`, `[Gamma]`), Vector, 2D textures with tiling/offset (`[NoScaleOffset]`, `[Normal]`, `[MainTexture]`), `[Toggle]`/`[ToggleOff]`/`[ToggleUI]`, `[KeywordEnum]`, `[Enum]` (including `UnityEngine.Rendering.CullMode`/`BlendMode`/`CompareFunction`), `[Header]`, `[Space]` and `[HideInInspector]`.
+  - Rendering: a stand-in unlit or PBR material driven by the shader's properties, with the drawn pass's `Cull`/`ZWrite`/`ZTest`/`Blend`/`ColorMask` state applied.
+  - Scene: mesh picker (sphere, cube, plane, cylinder, torus), orbit camera, light direction/intensity, ambient, background, wireframe and turntable rotation.
+  - Refreshes on edit (new setting `shaderlabKit.preview.refreshDelay`) and on save. Values are remembered per shader in workspace state.
+  - Limits: **the shader's HLSL is not executed**, so custom vertex/fragment logic, `_Time` animation and depth effects aren't shown. Keyword variants, `#include`s, multi-pass, Cube/3D textures, shadows/GI/fog/additional lights, custom meshes and `.mat` files aren't supported. Behaviour may change while the feature is experimental.
 - Shader-aware symbols: properties, keywords (including `[Toggle]` and `[KeywordEnum]`-generated ones), `#define` macros, functions (with leading doc comments), structs and struct members are now completed, hovered and go-to-definition-able, across the open file and its project-local `#include`s. Package-cache and Unity Editor includes are not scanned.
 - Struct member completion and hover for `var.` when `var` is declared with a user struct or a URP struct (`Light`, `VertexPositionInputs`, `VertexNormalInputs`, `InputData`, `SurfaceData`).
 - ShaderLab syntax completion and hover: material property attributes, `Tags` keys/values, SubShader/Pass statements, `Stencil` blocks, and values for `ColorMask`, `BlendOp` and `AlphaToMask`.

@@ -21,3 +21,8 @@ Planned, not yet ported in this pass:
 - URP built-in dictionary (`src/urp/urpGlobals.ts`), to be adapted for `src/data/` or `src/unity/`.
 
 Entries above will be updated with exact ported file paths once each port lands.
+
+## three.js
+Copyright © 2010-2026 three.js authors. MIT License.
+
+Bundled (not modified) into `dist/webview.js` as a runtime dependency (`three` in `package.json`) for the shader preview webview: the WebGL renderer, geometries, materials and `OrbitControls` (`examples/jsm/controls/OrbitControls.js`).
